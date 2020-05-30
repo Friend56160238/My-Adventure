@@ -1,0 +1,463 @@
+﻿@{
+    ViewBag.Title = "Home Page";
+}
+
+<script type="text/javascript" src="https://api.longdo.com/map/?key=b116bd09e7ced97c726310d1f1c61d0b"></script>
+<script>
+
+    var map;
+    var search;
+    var searchView;
+    var suggest;
+    var result;
+    var lat;
+    var long;
+    var address;
+    var dateInput;
+    var activityName;
+
+    var addressView;
+    var dateInputView;
+    var activityNameView;
+    var idSelect = -1;
+    var searchMain;
+
+    function getData() {
+
+        idSelect = -1;
+
+        var params = {
+            spreadsheetId: spreadsheetId,
+            range: range,
+        };
+
+        var request = gapi.client.sheets.spreadsheets.values.get(params);
+        request.then(function (response) {
+            // TODO: Change code below to process the `response` object:
+            console.log(response.result);
+            Data = response.result.values;
+
+            const tbody = document.createElement('tbody');
+            const thead = document.createElement('thead');
+            var text = '';
+            document.getElementById('tableList').innerHTML = '';
+            console.log('Data', Data);
+            console.log('searchMain.value', searchMain.value);
+            for (var i = 1; i < Data.length; i++) {
+                if (searchMain.value == '') {
+                    text = text + '<tr><th scope="row" ><img src="/Content/img/Pin_Map_Vector.svg.png" onclick="moveLocation(' + Data[i][3] + ',' + Data[i][4] + ')" style=" width: 60px;" class="rounded-circle" alt="Cinque Terre"></th><th scope="row"><p style="font-size: 14px;">' + Data[i][1] + '</p><p style="font-size: 12px; margin-top: -15px;">' + Data[i][5] + '</p></th><th scope="row"><button type="button" style="width: 60px;height: 30px;font-size: 11px;" class="btn btn-primary" onclick="view(' + Data[i][0] + ')">Detail</button></th></tr>';
+                } else {
+                    if (Data[i][1].includes(searchMain.value)){
+                        text = text + '<tr><th scope="row" ><img src="/Content/img/Pin_Map_Vector.svg.png" onclick="moveLocation(' + Data[i][3] + ',' + Data[i][4] + ')" style=" width: 60px;" class="rounded-circle" alt="Cinque Terre"></th><th scope="row"><p style="font-size: 14px;">' + Data[i][1] + '</p><p style="font-size: 12px; margin-top: -15px;">' + Data[i][5] + '</p></th><th scope="row"><button type="button" style="width: 60px;height: 30px;font-size: 11px;" class="btn btn-primary" onclick="view(' + Data[i][0] + ')">Detail</button></th></tr>';
+
+                    }
+                }
+            }
+            tbody.innerHTML = text;
+            //thead.innerHTML = '<tr><th scope = "col" > My Adventure List</th ></tr >';
+            document.getElementById('tableList').appendChild(thead);
+            document.getElementById('tableList').appendChild(tbody);
+
+        }, function (reason) {
+            console.error('error: ' + reason.result.error.message);
+        });
+
+    }
+
+    function init() {
+        map = new longdo.Map({
+            placeholder: document.getElementById('map')
+        });
+
+        search = document.getElementById('search');
+        suggest = document.getElementById('suggest');
+        result = document.getElementById('result');
+
+        lat = document.getElementById('lat');
+        lon = document.getElementById('lon');
+        address = document.getElementById('address');
+        dateInput = document.getElementById('dateInput');
+        activityName = document.getElementById('activityName');
+
+        addressView = document.getElementById('addressView');
+        dateInputView = document.getElementById('dateInputView');
+        activityNameView = document.getElementById('activityNameView');
+        searchView = document.getElementById('searchView');
+
+        searchMain = document.getElementById('searchMain');
+
+        search.onkeyup = function (event) {
+            if ((event || window.event).keyCode != 13)
+                return;
+            doSearch();
+        }
+
+        search.oninput = function () {
+            if (search.value.length < 3) {
+                suggest.style.display = 'none';
+                return;
+            }
+
+            map.Search.suggest(search.value, { tag: 'poi', limit: 10 });
+        };
+
+        //map.Search.placeholder(
+        //    document.getElementById('result')
+        //);
+
+        map.Event.bind('suggest', function (result) {
+
+            if (result.meta.keyword != search.value) return;
+
+            suggest.innerHTML = '';
+            for (var i = 0, item; item = result.data[i]; ++i) {
+                longdo.Util.append(suggest, 'a', {
+                    innerHTML: item.d,
+                    href: 'javascript:doSuggest(\'' + item.w + '\')'
+                });
+            }
+            address.innerHTML = '';
+            suggest.style.display = 'flex';
+        });
+
+    }
+
+    function doSearch() {
+        //result.style.display = 'block';
+        map.Search.search(search.value, { limit: 10 });
+        suggest.style.display = 'none';
+
+        var url = "https://search.longdo.com/mapsearch/json/search?keyword=" + search.value + "&limit=10&key=b116bd09e7ced97c726310d1f1c61d0b";
+        jQuery.getJSON(url, function (response, status, xhr) {
+            for (var i = 0, item; item = response.data[i]; ++i) {
+                if (item.name === search.value) {
+                    console.log('select', item);
+                    address.innerHTML = item.address;
+                    lat.value = item.lat;
+                    lon.value = item.lon;
+                    map.location({ lon: lon, lat: lat }, true);
+                }
+            }
+        });
+    }
+
+    function doSuggest(value) {
+
+        search.value = value;
+        console.log('1', value);
+        doSearch();
+    }
+
+    function moveLocation(lat, lon) {
+        map.location({ lon: lon, lat: lat }, true);
+        map.zoom(17, true);
+    }
+
+    function updateGoogleSheet() {
+
+        dataSave = dataSave.sort((a, b) => {
+            return new Date(a[5]) - new Date(b[5]);
+        });
+        var index = 0;
+        for (var i = 0; i < dataSave.length; i++) {
+            dataSave[i][0] = index;
+            index++;
+        }
+
+
+        var params = {
+            // The ID of the spreadsheet to update.
+            spreadsheetId: spreadsheetId,  // TODO: Update placeholder value.
+            // The A1 notation of the values to update.
+            range: range,  // TODO: Update placeholder value.
+            valueInputOption: 'USER_ENTERED',
+        };
+
+        var valueRangeBody = {
+            "majorDimension": "ROWS",
+            "values": dataSave,
+        };
+
+        var request = gapi.client.sheets.spreadsheets.values.update(params, valueRangeBody);
+        request.then(function (response) {
+            // TODO: Change code below to process the `response` object:
+            console.log('3');
+            $('#exampleModalLong').modal('hide');
+            $('#modalView').modal("hide");
+            getData();
+        }, function (reason) {
+            console.error('error: ' + reason.result.error.message);
+        });
+
+    }
+
+    function save() {
+
+
+        console.log('0');
+        dataSave = new Array();
+        if (Data != undefined) {
+            for (var i = 0; i < Data.length; i++) {
+                dataSave.push([Data[i][0], Data[i][1], Data[i][2], Data[i][3], Data[i][4], Data[i][5], Data[i][6]]);
+            }
+            dataSave.push([String(Data.length), String(activityName.value), address.innerHTML, String(lat.value), String(lon.value), String(dateInput.value), search.value]);
+            console.log('dataSave', dataSave);
+        } else {
+            dataSave.push(["0", "Name", "Address", "lat", "lon", "Date" , "serach"]);
+            dataSave.push([String(1), String(activityName.value), address.innerHTML, String(lat.value), String(lon.value), String(dateInput.value), search.value]);
+            console.log('dataSave', dataSave);
+        }
+
+        var params = {
+            spreadsheetId: spreadsheetId,
+            range: range,
+        };
+
+        var clearValuesRequestBody = {
+            // TODO: Add desired properties to the request body.
+        };
+
+        var request = gapi.client.sheets.spreadsheets.values.clear(params, clearValuesRequestBody);
+        request.then(function (response) {
+            // TODO: Change code below to process the `response` object:
+            console.log('1');
+            updateGoogleSheet();
+        }, function (reason) {
+            console.error('error: ' + reason.result.error.message);
+        });
+    }
+
+    function view(id) {
+        idSelect = id;
+        addressView.innerHTML = Data[id][2];
+        dateInputView.innerHTML = Data[id][5];
+        activityNameView.innerHTML = Data[id][1];
+        searchView.innerHTML = Data[id][6];
+        $('#modalView').modal('show');
+
+    }
+
+    function deleteRows(){
+        dataSave = new Array();
+        if (Data != undefined) {
+            var index = 0;
+            for (var i = 0; i < Data.length; i++) {
+                if (Data[i][0] != idSelect) {
+                    dataSave.push([String(index), Data[i][1], Data[i][2], Data[i][3], Data[i][4], Data[i][5]]);
+                    index++;
+                }
+            }
+
+
+        } else {
+
+        }
+
+        var params = {
+            spreadsheetId: spreadsheetId,
+            range: range,
+        };
+
+        var clearValuesRequestBody = {
+            // TODO: Add desired properties to the request body.
+        };
+
+        var request = gapi.client.sheets.spreadsheets.values.clear(params, clearValuesRequestBody);
+        request.then(function (response) {
+            // TODO: Change code below to process the `response` object:
+            updateGoogleSheet();
+        }, function (reason) {
+            console.error('error: ' + reason.result.error.message);
+        });
+    }
+
+    function editRows() {
+        dataSave = new Array();
+        if (Data != undefined) {
+            for (var i = 0; i < Data.length; i++) {
+                if (Data[i][0] == idSelect) {
+                    dataSave.push([Data[i][0], String(activityName.value), address.innerHTML, String(lat.value), String(lon.value), String(dateInput.value), search.value]);
+                } else {
+                    dataSave.push([Data[i][0], Data[i][1], Data[i][2], Data[i][3], Data[i][4], Data[i][5], Data[i][6]]);
+                }
+            }
+        } else {
+
+        }
+
+        var params = {
+            spreadsheetId: spreadsheetId,
+            range: range,
+        };
+
+        var clearValuesRequestBody = {
+            // TODO: Add desired properties to the request body.
+        };
+
+        var request = gapi.client.sheets.spreadsheets.values.clear(params, clearValuesRequestBody);
+        request.then(function (response) {
+            // TODO: Change code below to process the `response` object:
+            console.log('1');
+            updateGoogleSheet();
+        }, function (reason) {
+            console.error('error: ' + reason.result.error.message);
+        });
+    }
+
+    function editClick() {
+        activityName.value = Data[idSelect][1];
+        address.innerHTML = Data[idSelect][2];
+        lon.value = Data[idSelect][4];
+        lat.value = Data[idSelect][3];
+        dateInput.value = Data[idSelect][5];
+        search.value = Data[idSelect][6];
+
+        $('#modalView').modal("hide");
+        $('#exampleModalLong').modal('show');
+    }
+
+    function save_or_edit() {
+        console.log('selectIndex', idSelect);
+        if (idSelect == -1) {
+            save();
+        } else {
+            editRows();
+        }
+    }
+
+    function add() {
+        activityName.value = '';
+        address.innerHTML = '';
+        lon.value = '';
+        lat.value = '';
+        dateInput.value = "2011-08-19";
+        search.value = '';
+        idSelect = -1;
+        $('#exampleModalLong').modal('show');
+    }
+
+</script>
+
+
+<div class="row" style="margin-top:15px;">
+    <div class="col-md-4">
+
+        <div class="input-group">
+            <input type="text" id="searchMain" class="form-control" placeholder="Recipient's username" aria-label="Recipient's username" aria-describedby="basic-addon2">
+            <div class="input-group-append">
+                <button class="btn btn btn-primary" id="searchbuttonMain" type="button" style="font-size: 12px;" onclick="getData()">Search</button>
+                <button type="button" class="btn btn-success" onclick="add()" style="font-size: 12px; width: 100px;">
+                    New Activity
+                </button>
+            </div>
+        </div>
+
+        <div class="rows">
+            <br>
+            <h5>My Adventure List</h5>
+            <table class="table" id="tableList">
+            </table>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div id="map" style="height: 700px;"></div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="exampleModalLong" tabindex="-1" role="dialog" aria-labelledby="exampleModalLongTitle" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="form-group row">
+                    <label for="staticEmail" class="col-sm-2 col-form-label">Name</label>
+                    <div class="col-sm-10">
+                        <input class="form-control" type="text" id="activityName">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label for="example-date-input" class="col-2 col-form-label">Date</label>
+                    <div class="col-10">
+                        <input class="form-control" type="date" value="2011-08-19" id="dateInput">
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <label for="example-date-input" class="col-2 col-form-label">Address</label>
+                    <div class="col-10">
+                        <input type="text" id="search" class="form-control">
+                        <div id="suggest" style="flex-direction: column;"></div>
+                        @*<div class="col-10" id="result" onclick="selectResult(event)"></div>*@
+                    </div>
+
+                </div>
+
+
+                <div class="form-group row">
+                    <label for="example-date-input" class="col-2 col-form-label"></label>
+                    <div class="col-10">
+                        <div id="address"></div>
+                    </div>
+                </div>
+
+                <div class="form-group row" style="display: none;">
+                    <input type="number" id="lat" class="form-control">
+                    <input type="number" id="lon" class="form-control">
+                </div>
+
+
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="save_or_edit()">Save changes</button>
+            </div>
+            <script>init();</script>
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="modalView" tabindex="-1" role="dialog" aria-labelledby="exampleModalLongTitle" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+
+                <div class="row">
+                    <div class="col-3" style="text-align:right;"><p>Name :</p></div>
+                    <div class="col"><p id="activityNameView"></p></div>
+                </div>
+
+                <div class="row">
+                    <div class="col-3" style="text-align:right;"><p>Date :</p></div>
+                    <div class="col"><p id="dateInputView"></p></div>
+                </div>
+
+                <div class="row">
+                    <div class="col-3" style="text-align:right;"><p>Address :</p></div>
+                    <div class="col"><p id="searchView"></p><div id="addressView"></div></div>
+                </div>
+
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="editClick()">Edit</button>
+                <button type="button" class="btn btn-primary" onclick="deleteRows()">Delete</button>
+            </div>
+            <script>init();</script>
+        </div>
+    </div>
+</div>
+
+
+
